@@ -523,6 +523,21 @@ command = "uv"
 args = ["run", "python"]
 ```
 
+You can use a command wrapper to run a Node.js startup snapshot through the
+project's selected Node.js version, without a separate launcher binary:
+
+```toml [mise.toml]
+[tools]
+node = "24"
+
+[wrappers.vsl]
+command = "node"
+args = ["--snapshot-blob", "snapshot.blob"]
+```
+
+Run `vsl` to load `snapshot.blob` from the current directory. Node.js reads the
+blob and reports errors for missing or incompatible snapshots.
+
 When Rust comes from rustup or the system rather than mise, this routes every
 `cargo` call through [Mr Boxington](https://mr-boxington.jdx.dev/):
 
