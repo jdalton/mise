@@ -128,7 +128,6 @@ mod usage;
 mod r#use;
 mod vars;
 pub(crate) mod version;
-mod vsl;
 mod watch;
 mod r#where;
 mod r#which;
@@ -412,7 +411,6 @@ pub(crate) enum Commands {
     Use(r#use::Use),
     Vars(vars::Vars),
     Version(version::Version),
-    Vsl(vsl::Vsl),
     Watch(Box<watch::Watch>),
     Where(r#where::Where),
     Which(which::Which),
@@ -513,7 +511,7 @@ impl Commands {
         matches!(self, Self::Daemons(cmd) if cmd.starts())
             || matches!(self, Self::Run(cmd) if !cmd.only_prints_help())
             || matches!(self, Self::Watch(cmd) if !cmd.only_prints_help())
-            || matches!(self, Self::Exec(_) | Self::Install(_) | Self::Vsl(_))
+            || matches!(self, Self::Exec(_) | Self::Install(_))
     }
 
     /// Builds the subcommand's future on the heap instead of awaiting it
@@ -602,7 +600,6 @@ impl Commands {
             Self::Use(cmd) => Box::pin(cmd.run()),
             Self::Vars(cmd) => Box::pin(cmd.run()),
             Self::Version(cmd) => Box::pin(cmd.run()),
-            Self::Vsl(cmd) => Box::pin(cmd.run()),
             Self::Watch(cmd) => Box::pin(cmd.run()),
             Self::Where(cmd) => Box::pin(cmd.run()),
             Self::Which(cmd) => Box::pin(cmd.run()),
@@ -1072,6 +1069,48 @@ fn subcommand_names() -> Vec<String> {
 }
 
 impl Cli {
+    /// Select a smaller runtime for the direct Node snapshot form of `exec`.
+    pub(crate) fn is_node_snapshot_exec(args: &[String]) -> bool {
+        let Some(separator) = args.iter().skip(1).position(|arg| arg == "--") else {
+            return false;
+        };
+        let separator = separator + 1;
+        let [node, flag, ..] = &args[separator + 1..] else {
+            return false;
+        };
+        // This runs before run_inner sets ARGS, so read the command name
+        // from argv directly instead of consulting IS_RUNNING_AS_SHIM.
+        let is_mise = std::path::Path::new(&args[0])
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(crate::env::is_mise_binary);
+        if node != "node"
+            || (flag != "--snapshot-blob" && !flag.starts_with("--snapshot-blob="))
+            || !is_mise
+            || crate::env::MISE_SHIM_PATH.read().unwrap().is_some()
+        {
+            return false;
+        }
+
+        // Use parser events to distinguish an exec command from a similarly
+        // named flag value, including when short flags are bundled.
+        let argv = args[1..separator]
+            .iter()
+            .map(std::ffi::OsStr::new)
+            .collect::<Vec<_>>();
+        let mut parser = usage_rs::Parser::new(Self::command(), &argv);
+        let mut is_exec = false;
+        while let Some(event) = parser.next_event() {
+            match event {
+                Ok(usage_rs::Event::Command(command)) if command.name == "exec" => is_exec = true,
+                Ok(usage_rs::Event::Flag { flag, .. })
+                    if !flag.longs.contains(&"jobs") && !flag.longs.contains(&"tool") => {}
+                _ => return false,
+            }
+        }
+        is_exec
+    }
+
     /// The settings layer the global flags set on top of `command_local`,
     /// for `Settings::add_cli_matches`.
     fn settings_layer(&self, command_local: SettingsPartial) -> SettingsPartial {
