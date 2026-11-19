@@ -1072,11 +1072,6 @@ fn subcommand_names() -> Vec<String> {
 }
 
 impl Cli {
-    /// Use a smaller Tokio pool for VSL's short direct Node launch.
-    pub(crate) fn is_vsl_fast_path(args: &[String]) -> bool {
-        args.get(1).is_some_and(|arg| arg == "vsl")
-    }
-
     /// The settings layer the global flags set on top of `command_local`,
     /// for `Settings::add_cli_matches`.
     fn settings_layer(&self, command_local: SettingsPartial) -> SettingsPartial {
