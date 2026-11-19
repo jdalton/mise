@@ -128,6 +128,7 @@ mod usage;
 mod r#use;
 mod vars;
 pub(crate) mod version;
+mod vsl;
 mod watch;
 mod r#where;
 mod r#which;
@@ -411,6 +412,7 @@ pub(crate) enum Commands {
     Use(r#use::Use),
     Vars(vars::Vars),
     Version(version::Version),
+    Vsl(vsl::Vsl),
     Watch(Box<watch::Watch>),
     Where(r#where::Where),
     Which(which::Which),
@@ -511,7 +513,7 @@ impl Commands {
         matches!(self, Self::Daemons(cmd) if cmd.starts())
             || matches!(self, Self::Run(cmd) if !cmd.only_prints_help())
             || matches!(self, Self::Watch(cmd) if !cmd.only_prints_help())
-            || matches!(self, Self::Exec(_) | Self::Install(_))
+            || matches!(self, Self::Exec(_) | Self::Install(_) | Self::Vsl(_))
     }
 
     /// Builds the subcommand's future on the heap instead of awaiting it
@@ -600,6 +602,7 @@ impl Commands {
             Self::Use(cmd) => Box::pin(cmd.run()),
             Self::Vars(cmd) => Box::pin(cmd.run()),
             Self::Version(cmd) => Box::pin(cmd.run()),
+            Self::Vsl(cmd) => Box::pin(cmd.run()),
             Self::Watch(cmd) => Box::pin(cmd.run()),
             Self::Where(cmd) => Box::pin(cmd.run()),
             Self::Which(cmd) => Box::pin(cmd.run()),
@@ -1069,6 +1072,11 @@ fn subcommand_names() -> Vec<String> {
 }
 
 impl Cli {
+    /// Use a smaller Tokio pool for VSL's short direct Node launch.
+    pub(crate) fn is_vsl_fast_path(args: &[String]) -> bool {
+        args.get(1).is_some_and(|arg| arg == "vsl")
+    }
+
     /// The settings layer the global flags set on top of `command_local`,
     /// for `Settings::add_cli_matches`.
     fn settings_layer(&self, command_local: SettingsPartial) -> SettingsPartial {

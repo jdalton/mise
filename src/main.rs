@@ -91,6 +91,7 @@ fn main() -> ExitCode {
     if cli::Cli::exit_early_for_unchanged_hook_env(&early_args) {
         return ExitCode::SUCCESS;
     }
+    let vsl_fast_path = early_args.get(1).is_some_and(|arg| arg == "vsl");
     let nprocs = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or_default();
@@ -100,9 +101,13 @@ fn main() -> ExitCode {
     // doesn't need a worker per core (blocking work uses tokio's separate
     // on-demand pool), so cap the default on many-core machines. An explicit
     // MISE_JOBS still raises it without limit.
-    let threads = crate::env::MISE_JOBS
-        .unwrap_or_else(|| nprocs.min(16))
-        .max(8);
+    let threads = if vsl_fast_path {
+        1
+    } else {
+        crate::env::MISE_JOBS
+            .unwrap_or_else(|| nprocs.min(16))
+            .max(8)
+    };
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(threads)

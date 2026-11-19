@@ -538,6 +538,9 @@ args = ["--snapshot-blob", "snapshot.blob"]
 Run `vsl` to load `snapshot.blob` from the current directory. Node.js reads the
 blob and reports errors for missing or incompatible snapshots.
 
+For a direct launch, `mise vsl -- --snapshot-blob snapshot.blob app.js` runs
+Node from the active Mise configuration with a smaller Mise startup runtime.
+
 When Rust comes from rustup or the system rather than mise, this routes every
 `cargo` call through [Mr Boxington](https://mr-boxington.jdx.dev/):
 
