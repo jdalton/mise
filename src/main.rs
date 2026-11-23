@@ -91,18 +91,19 @@ fn main() -> ExitCode {
     if cli::Cli::exit_early_for_unchanged_hook_env(&early_args) {
         return ExitCode::SUCCESS;
     }
-    let nprocs = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or_default();
     // Tokio spawns every worker thread eagerly when the runtime is built, so
     // the default worker count is startup cost paid by every invocation —
     // clone + stack + TLS per thread before any work happens. Async I/O
     // doesn't need a worker per core (blocking work uses tokio's separate
-    // on-demand pool), so cap the default on many-core machines. An explicit
-    // MISE_JOBS still raises it without limit.
-    let threads = crate::env::MISE_JOBS
-        .unwrap_or_else(|| nprocs.min(16))
-        .max(8);
+    // on-demand pool), so cap the default on many-core machines. A direct Node
+    // snapshot launch defaults to one worker. An explicit MISE_JOBS takes precedence.
+    let threads = match *crate::env::MISE_JOBS {
+        Some(jobs) => jobs.max(8),
+        None if cli::Cli::is_node_snapshot_exec(&early_args) => 1,
+        None => std::thread::available_parallelism()
+            .map(|n| n.get().clamp(8, 16))
+            .unwrap_or(8),
+    };
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(threads)
